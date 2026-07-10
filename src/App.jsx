@@ -3,31 +3,43 @@ import { useMemo, useState } from "react";
 const initialServices = [
   {
     id: 1,
-    name: "Passport Renewal",
-    description: "Processing of renewal applications.",
-    duration: 25,
-    priority: "high",
-  },
-  {
-    id: 2,
-    name: "Driver License Support",
-    description: "License issue reporting and updates.",
-    duration: 15,
+    name: "General Checkup",
+    description: "Routine physical exam and health assessment.",
+    duration: 30,
     priority: "medium",
   },
   {
+    id: 2,
+    name: "Vaccination",
+    description: "Scheduled immunizations and booster shots.",
+    duration: 15,
+    priority: "high",
+  },
+  {
     id: 3,
-    name: "General Inquiry",
-    description: "Questions and non-transaction support.",
-    duration: 10,
+    name: "Lab Work",
+    description: "Blood draw and diagnostic testing.",
+    duration: 20,
     priority: "low",
   },
 ];
 
 const initialQueues = {
-  1: ["Alicia", "Marco", "Dina", "Ben"],
-  2: ["Sarah", "Tyson"],
-  3: ["Mina", "Raj", "Felix"],
+  1: [
+    { name: "Alicia", time: "9:00 AM" },
+    { name: "Marco", time: "9:30 AM" },
+    { name: "Dina", time: "10:30 AM" },
+    { name: "Ben", time: "11:00 AM" },
+  ],
+  2: [
+    { name: "Sarah", time: "9:15 AM" },
+    { name: "Tyson", time: "10:00 AM" },
+  ],
+  3: [
+    { name: "Mina", time: "9:00 AM" },
+    { name: "Raj", time: "9:20 AM" },
+    { name: "Felix", time: "9:40 AM" },
+  ],
 };
 
 const blankForm = {
@@ -37,7 +49,7 @@ const blankForm = {
   priority: "medium",
 };
 
-export default function App() {
+export default function App({ userEmail, onLogout }) {
   const [activeScreen, setActiveScreen] = useState("dashboard");
   const [services, setServices] = useState(initialServices);
   const [queues, setQueues] = useState(initialQueues);
@@ -182,6 +194,15 @@ export default function App() {
         >
           Queue Management
         </button>
+
+        {onLogout && (
+          <div className="sidebar-footer">
+            {userEmail && <p className="sidebar-user">{userEmail}</p>}
+            <button className="nav-btn" onClick={onLogout}>
+              Log out
+            </button>
+          </div>
+        )}
       </aside>
 
       <main className="content">
@@ -359,13 +380,14 @@ export default function App() {
               </div>
 
               {selectedQueue.length === 0 ? (
-                <p className="top-margin">No users currently in this queue.</p>
+                <p className="top-margin">No appointments booked for this service.</p>
               ) : (
                 <ul className="queue-list top-margin">
-                  {selectedQueue.map((user, index) => (
-                    <li key={`${user}-${index}`}>
+                  {selectedQueue.map((appointment, index) => (
+                    <li key={`${appointment.name}-${index}`}>
                       <span>
-                        #{index + 1} {user}
+                        #{index + 1} {appointment.name}
+                        <span className="appointment-time"> — {appointment.time}</span>
                       </span>
                       <div className="inline-actions">
                         <button

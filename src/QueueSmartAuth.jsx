@@ -10,14 +10,15 @@ import {
   ArrowRight,
   CheckCircle2,
   AlertCircle,
-  LogOut,
-  Users as UsersIcon,
 } from "lucide-react";
+
+import App from "./App";
+import UserApp from "./UserApp";
 
 /* ---------------------------------------------------------
    Design tokens
 --------------------------------------------------------- */
-const COLORS = {
+export const COLORS = {
   ink: "#16213E",
   paper: "#F5F6F2",
   amber: "#FFB627",
@@ -27,16 +28,40 @@ const COLORS = {
   slate: "#5B6472",
   line: "#DEDCD3",
 };
-const FONT_DISPLAY = "'IBM Plex Sans', sans-serif";
-const FONT_MONO = "'IBM Plex Mono', monospace";
+export const FONT_DISPLAY = "'IBM Plex Sans', sans-serif";
+export const FONT_MONO = "'IBM Plex Mono', monospace";
 
 /* ---------------------------------------------------------
-   Mock data / helpers (no backend — in-memory only)
+   Mock data / helpers (no backend — persisted to localStorage
+   so accounts created via Register survive page reloads)
 --------------------------------------------------------- */
 const SEED_USERS = [
   { email: "jane@example.com", password: "Passw0rd!", role: "user" },
   { email: "admin@queuesmart.com", password: "Passw0rd!", role: "admin" },
 ];
+const USERS_STORAGE_KEY = "queuesmart_users";
+
+function loadUsers() {
+  try {
+    const stored = JSON.parse(localStorage.getItem(USERS_STORAGE_KEY));
+    if (!Array.isArray(stored)) return SEED_USERS;
+    const seedEmails = new Set(SEED_USERS.map((u) => u.email.toLowerCase()));
+    const registered = stored.filter((u) => !seedEmails.has(u.email?.toLowerCase()));
+    return [...SEED_USERS, ...registered];
+  } catch {
+    return SEED_USERS;
+  }
+}
+
+function saveRegisteredUsers(users) {
+  try {
+    const seedEmails = new Set(SEED_USERS.map((u) => u.email.toLowerCase()));
+    const registered = users.filter((u) => !seedEmails.has(u.email.toLowerCase()));
+    localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(registered));
+  } catch {
+    // localStorage unavailable (e.g. private browsing) — accounts stay in-memory only
+  }
+}
 
 function validEmail(v) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
@@ -54,7 +79,7 @@ function pwRules(pw) {
 --------------------------------------------------------- */
 export default function QueueSmartAuth() {
   const [screen, setScreen] = useState("login"); // login | register | dashboard
-  const [users, setUsers] = useState(SEED_USERS);
+  const [users, setUsers] = useState(loadUsers);
   const [currentUser, setCurrentUser] = useState(null);
   const [ticket, setTicket] = useState(41);
 
@@ -62,6 +87,10 @@ export default function QueueSmartAuth() {
     const id = setInterval(() => setTicket((t) => t + 1), 2600);
     return () => clearInterval(id);
   }, []);
+
+  useEffect(() => {
+    saveRegisteredUsers(users);
+  }, [users]);
 
   function handleLogout() {
     setCurrentUser(null);
@@ -546,132 +575,15 @@ function RegisterPanel({ users, onRegister, goLogin }) {
 }
 
 /* ---------------------------------------------------------
-   Post-auth placeholder (proves role-based navigation works)
+   Post-auth routing: admins get the admin panel, customers
+   get the QueueSmart user screens
 --------------------------------------------------------- */
 function Dashboard({ user, onLogout }) {
   const isAdmin = user.role === "admin";
-  return (
-    <div className="min-h-screen" style={{ background: COLORS.paper }}>
-      <header
-        className="flex items-center justify-between px-6 md:px-12 py-5 border-b"
-        style={{ borderColor: COLORS.line }}
-      >
-        <div className="flex items-center gap-2">
-          <Ticket size={20} style={{ color: COLORS.ink }} />
-          <span className="font-semibold" style={{ color: COLORS.ink }}>
-            QueueSmart
-          </span>
-        </div>
-        <div className="flex items-center gap-4">
-          <span className="text-xs hidden sm:inline" style={{ color: COLORS.slate }}>
-            {user.email}
-          </span>
-          <button
-            onClick={onLogout}
-            className="qs-btn flex items-center gap-1.5 text-xs font-medium py-2 px-3 rounded-lg"
-            style={{ border: `1px solid ${COLORS.line}`, color: COLORS.ink }}
-          >
-            <LogOut size={14} /> Log out
-          </button>
-        </div>
-      </header>
 
-      <main className="px-6 md:px-12 py-10 max-w-3xl mx-auto">
-        <p className="text-xs uppercase tracking-widest mb-2" style={{ fontFamily: FONT_MONO, color: COLORS.slate }}>
-          {isAdmin ? "Administrator" : "Customer"}
-        </p>
-        <h1 className="text-2xl font-semibold mb-8" style={{ color: COLORS.ink }}>
-          {isAdmin ? "Queue control" : "You're in line"}
-        </h1>
-        {isAdmin ? <AdminMock /> : <UserMock />}
-      </main>
-    </div>
-  );
-}
-
-function UserMock() {
-  const [pos, setPos] = useState(7);
-  return (
-    <div className="rounded-2xl p-6" style={{ background: "#fff", border: `1px solid ${COLORS.line}` }}>
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-xs" style={{ color: COLORS.slate }}>
-            Front Desk queue
-          </p>
-          <p className="text-4xl font-semibold mt-1" style={{ fontFamily: FONT_MONO, color: COLORS.ink }}>
-            A-048
-          </p>
-        </div>
-        <div className="text-right">
-          <p className="text-xs" style={{ color: COLORS.slate }}>
-            Position
-          </p>
-          <p className="text-2xl font-semibold" style={{ color: COLORS.ink }}>
-            {pos}
-          </p>
-        </div>
-      </div>
-      <div className="mt-4 h-2 rounded-full" style={{ background: COLORS.line }}>
-        <div
-          className="h-2 rounded-full"
-          style={{ width: `${Math.max(6, (1 - pos / 12) * 100)}%`, background: COLORS.amber }}
-        />
-      </div>
-      <p className="mt-2 text-xs" style={{ color: COLORS.slate }}>
-        Estimated wait: ~{pos * 3} min
-      </p>
-      <button
-        onClick={() => setPos((p) => Math.max(0, p - 1))}
-        className="mt-5 text-xs font-medium underline"
-        style={{ color: COLORS.ink }}
-      >
-        (Demo) simulate line moving up
-      </button>
-    </div>
-  );
-}
-
-function AdminMock() {
-  const [queues, setQueues] = useState([
-    { name: "Front Desk", waiting: 12, serving: 41 },
-    { name: "Pharmacy", waiting: 5, serving: 14 },
-    { name: "Billing", waiting: 3, serving: 8 },
-  ]);
-
-  function callNext(i) {
-    setQueues((prev) =>
-      prev.map((q, idx) => (idx === i ? { ...q, serving: q.serving + 1, waiting: Math.max(0, q.waiting - 1) } : q))
-    );
+  if (isAdmin) {
+    return <App userEmail={user.email} onLogout={onLogout} />;
   }
 
-  return (
-    <div className="space-y-3">
-      {queues.map((q, i) => (
-        <div
-          key={q.name}
-          className="flex items-center justify-between rounded-2xl p-5"
-          style={{ background: "#fff", border: `1px solid ${COLORS.line}` }}
-        >
-          <div className="flex items-center gap-3">
-            <UsersIcon size={18} style={{ color: COLORS.slate }} />
-            <div>
-              <p className="font-medium text-sm" style={{ color: COLORS.ink }}>
-                {q.name}
-              </p>
-              <p className="text-xs" style={{ color: COLORS.slate }}>
-                {q.waiting} waiting · now serving {String(q.serving).padStart(3, "0")}
-              </p>
-            </div>
-          </div>
-          <button
-            onClick={() => callNext(i)}
-            className="qs-btn text-xs font-semibold py-2 px-3 rounded-lg"
-            style={{ background: COLORS.ink, color: COLORS.paper }}
-          >
-            Call next
-          </button>
-        </div>
-      ))}
-    </div>
-  );
+  return <UserApp user={user} onLogout={onLogout} />;
 }
