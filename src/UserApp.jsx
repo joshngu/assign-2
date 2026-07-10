@@ -1,8 +1,9 @@
 import { useState } from "react";
-import { Ticket, LogOut, LayoutDashboard, ListPlus, Clock, History as HistoryIcon, Bell } from "lucide-react";
+import { Ticket, LogOut, LayoutDashboard, ListPlus, Clock, History as HistoryIcon } from "lucide-react";
 
 import { COLORS } from "./QueueSmartAuth";
-import { SERVICES, NOTIFICATIONS } from "./userData";
+import { SERVICES } from "./userData";
+import { NotificationBell} from "./Notifications";
 import UserDashboardScreen from "./UserDashboardScreen";
 import JoinQueueScreen from "./JoinQueueScreen";
 import QueueStatusScreen from "./QueueStatusScreen";
@@ -23,7 +24,6 @@ const TABS = [
 export default function UserApp({ user, onLogout }) {
   const [screen, setScreen] = useState("dashboard");
   const [selectedServiceId, setSelectedServiceId] = useState(SERVICES[0].id);
-  const unreadCount = NOTIFICATIONS.filter((n) => n.unread).length;
 
   function goTo(id) {
     setScreen(id);
@@ -42,17 +42,7 @@ export default function UserApp({ user, onLogout }) {
           </span>
         </div>
         <div className="flex items-center gap-4">
-          <div className="relative">
-            <Bell size={18} style={{ color: COLORS.slate }} />
-            {unreadCount > 0 && (
-              <span
-                className="absolute -top-1.5 -right-1.5 h-4 w-4 rounded-full text-white text-[10px] flex items-center justify-center"
-                style={{ background: COLORS.coral }}
-              >
-                {unreadCount}
-              </span>
-            )}
-          </div>
+          <NotificationBell />
           <span className="text-xs hidden sm:inline" style={{ color: COLORS.slate }}>
             {user?.email}
           </span>
