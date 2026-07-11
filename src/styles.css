@@ -183,6 +183,25 @@ select {
 .error {
   margin-top: 0;
   color: #dc2626;
+  display: block;
+  font-size: 0.8rem;
+  font-weight: 400;
+}
+
+.char-count {
+  display: block;
+  text-align: right;
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: #6b7280;
+  margin-top: 2px;
+}
+
+.field-invalid input,
+.field-invalid textarea,
+.field-invalid select {
+  border-color: #dc2626;
+  background: #fef2f2;
 }
 
 .total {
