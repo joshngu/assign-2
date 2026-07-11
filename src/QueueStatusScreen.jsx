@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { CheckCircle2, Circle } from "lucide-react";
 
 import { COLORS, FONT_MONO } from "./QueueSmartAuth";
+import { useNotifications } from "./Notifications";
 
 const STATUS_STEPS = [
   { id: "waiting", label: "Waiting" },
@@ -20,8 +21,27 @@ const MOCK_APPOINTMENT = {
    and a status stepper
 --------------------------------------------------------- */
 export default function QueueStatusScreen() {
+  const { notify } = useNotifications();
   const [minutesUntil, setMinutesUntil] = useState(MOCK_APPOINTMENT.startMinutesUntil);
   const currentStep = minutesUntil === 0 ? "served" : minutesUntil <= 9 ? "almost" : "waiting";
+  const prevStep = useRef(currentStep);
+
+  useEffect(() => { 
+    if (prevStep.current === currentStep) return;
+    prevStep.current = currentStep;
+
+    if (currentStep === "almost") {
+      notify({
+        title: "Almost ready",
+        body: `${MOCK_APPOINTMENT.service} will call you in a few minutes.`,
+      });
+    } else if (currentStep === "served") {
+      notify({
+        title: `${MOCK_APPOINTMENT.service} — served`,
+        body: "Your appointment has been completed.",
+      });
+    }
+  }, [currentStep, notify]);
 
   return (
     <div className="space-y-6">
