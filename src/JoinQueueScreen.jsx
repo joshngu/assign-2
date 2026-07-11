@@ -4,12 +4,14 @@ import { Clock, CheckCircle2, CircleAlert } from "lucide-react";
 import { COLORS, FONT_MONO } from "./QueueSmartAuth";
 import { StatusBadge } from "./UserBadges";
 import { SERVICES } from "./userData";
+import { useNotifications } from "./Notifications";
 
 /* ---------------------------------------------------------
    Join Queue — select a service, pick an available
    appointment timestamp, and book or cancel it
 --------------------------------------------------------- */
 export default function JoinQueueScreen({ selectedServiceId, setSelectedServiceId }) {
+  const { notify } = useNotifications();
   const [bookedTime, setBookedTime] = useState(null);
   const service = SERVICES.find((s) => s.id === selectedServiceId) || SERVICES[0];
   const nextAvailable = service.timeSlots.find((slot) => slot.available);
@@ -21,9 +23,17 @@ export default function JoinQueueScreen({ selectedServiceId, setSelectedServiceI
 
   function bookSlot(time) {
     setBookedTime(time);
+    notify({
+      title: `${service.name} appointment confirmed`,
+      body: `You're booked for ${time}.`,
+    });
   }
 
   function cancelBooking() {
+    notify({ 
+      title: `${service.name} appointment cancelled`,
+      body: `Your ${bookedTime} slot has been released.`,
+    });
     setBookedTime(null);
   }
 
