@@ -1,18 +1,24 @@
 import { useState } from "react";
-import { Clock, CheckCircle2, CircleAlert } from "lucide-react";
+import { Clock, CheckCircle2, CircleAlert, CalendarDays } from "lucide-react";
 
 import { COLORS, FONT_MONO } from "./QueueSmartAuth";
 import { StatusBadge } from "./UserBadges";
 import { SERVICES } from "./userData";
 import { useNotifications } from "./Notifications";
 
+function today() {
+  return new Date().toISOString().slice(0, 10);
+}
+
 /* ---------------------------------------------------------
-   Join Queue — select a service, pick an available
-   appointment timestamp, and book or cancel it
+   Join Queue — select a service, pick a preferred date and
+   an available appointment timestamp, and book or cancel it
 --------------------------------------------------------- */
 export default function JoinQueueScreen({ selectedServiceId, setSelectedServiceId }) {
   const { notify } = useNotifications();
   const [bookedTime, setBookedTime] = useState(null);
+  const [preferredDate, setPreferredDate] = useState(today());
+  const [dateError, setDateError] = useState("");
   const service = SERVICES.find((s) => s.id === selectedServiceId) || SERVICES[0];
   const nextAvailable = service.timeSlots.find((slot) => slot.available);
 
@@ -21,11 +27,27 @@ export default function JoinQueueScreen({ selectedServiceId, setSelectedServiceI
     setBookedTime(null);
   }
 
+  function handleDateChange(event) {
+    setPreferredDate(event.target.value);
+    setDateError("");
+  }
+
+  function validateDate(value) {
+    if (!value) return "Preferred date is required.";
+    if (value < today()) return "Preferred date can't be in the past.";
+    return "";
+  }
+
   function bookSlot(time) {
+    const error = validateDate(preferredDate);
+    if (error) {
+      setDateError(error);
+      return;
+    }
     setBookedTime(time);
     notify({
       title: `${service.name} appointment confirmed`,
-      body: `You're booked for ${time}.`,
+      body: `You're booked for ${preferredDate} at ${time}.`,
     });
   }
 
@@ -97,6 +119,28 @@ export default function JoinQueueScreen({ selectedServiceId, setSelectedServiceI
           </p>
         ) : (
           <>
+            <div className="mt-6">
+              <label htmlFor="preferred-date" className="text-xs font-medium flex items-center gap-1.5 mb-2" style={{ color: COLORS.slate }}>
+                <CalendarDays size={14} /> Preferred date
+              </label>
+              <input
+                id="preferred-date"
+                type="date"
+                min={today()}
+                value={preferredDate}
+                onChange={handleDateChange}
+                aria-invalid={!!dateError}
+                aria-describedby={dateError ? "preferred-date-error" : undefined}
+                className="qs-input text-sm px-3 py-2 rounded-lg"
+                style={{ border: `1px solid ${dateError ? COLORS.coral : COLORS.line}`, background: "#fff", color: COLORS.ink }}
+              />
+              {dateError && (
+                <p id="preferred-date-error" className="mt-1.5 text-xs flex items-center gap-1" style={{ color: COLORS.coral }}>
+                  <CircleAlert size={12} /> {dateError}
+                </p>
+              )}
+            </div>
+
             <p className="text-xs font-medium mt-6 mb-2" style={{ color: COLORS.slate }}>
               Available timestamps
             </p>
@@ -129,7 +173,7 @@ export default function JoinQueueScreen({ selectedServiceId, setSelectedServiceI
             {bookedTime ? (
               <div className="mt-5">
                 <p className="text-sm flex items-center gap-1.5" style={{ color: COLORS.greenText }}>
-                  <CheckCircle2 size={16} /> You're booked for {service.name} at {bookedTime}.
+                  <CheckCircle2 size={16} /> You're booked for {service.name} on {preferredDate} at {bookedTime}.
                 </p>
                 <button
                   type="button"
