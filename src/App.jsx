@@ -59,7 +59,7 @@ export default function App({ userEmail, onLogout }) {
 
   const [formData, setFormData] = useState(blankForm);
   const [editingServiceId, setEditingServiceId] = useState(null);
-  const [formError, setFormError] = useState("");
+  const [formErrors, setFormErrors] = useState({});
 
   const totalQueuedUsers = useMemo(
     () => Object.values(queues).reduce((sum, queue) => sum + queue.length, 0),
@@ -69,29 +69,43 @@ export default function App({ userEmail, onLogout }) {
   function handleFieldChange(event) {
     const { name, value } = event.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
+    // Clear that field's error as soon as the user starts fixing it
+    setFormErrors((prev) => (prev[name] ? { ...prev, [name]: undefined } : prev));
   }
 
   function validateForm() {
-    if (!formData.name.trim()) {
-      return "Service name is required.";
+    const errors = {};
+
+    const trimmedName = formData.name.trim();
+    if (!trimmedName) {
+      errors.name = "Service name is required.";
+    } else if (trimmedName.length > 100) {
+      errors.name = "Service name must not exceed 100 characters.";
     }
-    if (formData.name.trim().length > 100) {
-      return "Service name must not exceed 100 characters.";
-    }
+
     if (!formData.description.trim()) {
-      return "Description is required.";
+      errors.description = "Description is required.";
     }
-    if (!formData.duration || Number(formData.duration) <= 0) {
-      return "Expected duration must be greater than 0.";
+
+    const durationValue = Number(formData.duration);
+    if (formData.duration === "" || formData.duration === null) {
+      errors.duration = "Expected duration is required.";
+    } else if (Number.isNaN(durationValue) || durationValue <= 0) {
+      errors.duration = "Enter a whole number of minutes greater than 0.";
     }
-    return "";
+
+    if (!formData.priority) {
+      errors.priority = "Select a priority level.";
+    }
+
+    return errors;
   }
 
   function handleSaveService(event) {
     event.preventDefault();
-    const error = validateForm();
-    setFormError(error);
-    if (error) return;
+    const errors = validateForm();
+    setFormErrors(errors);
+    if (Object.keys(errors).length > 0) return;
 
     const payload = {
       name: formData.name.trim(),
@@ -116,7 +130,7 @@ export default function App({ userEmail, onLogout }) {
 
     setEditingServiceId(null);
     setFormData(blankForm);
-    setFormError("");
+    setFormErrors({});
   }
 
   function handleEditService(service) {
@@ -127,13 +141,14 @@ export default function App({ userEmail, onLogout }) {
       duration: String(service.duration),
       priority: service.priority,
     });
+    setFormErrors({});
     setActiveScreen("service-management");
   }
 
   function handleCancelEdit() {
     setEditingServiceId(null);
     setFormData(blankForm);
-    setFormError("");
+    setFormErrors({});
   }
 
   function moveUser(serviceId, fromIndex, toIndex) {
@@ -256,57 +271,86 @@ export default function App({ userEmail, onLogout }) {
         {activeScreen === "service-management" && (
           <section>
             <h2>Service Management Screen</h2>
-            <form className="card form-layout" onSubmit={handleSaveService}>
+            <form className="card form-layout" onSubmit={handleSaveService} noValidate>
               <h3>{editingServiceId ? "Edit Service" : "Create Service"}</h3>
 
-              <label>
-                Service Name (required, max 100)
+              <label className={formErrors.name ? "field-invalid" : ""}>
+                Service Name (required, max 100 characters)
                 <input
                   name="name"
                   maxLength={100}
                   value={formData.name}
                   onChange={handleFieldChange}
-                  required
+                  aria-invalid={!!formErrors.name}
+                  aria-describedby="name-error name-count"
                 />
+                <span id="name-count" className="char-count">
+                  {formData.name.length} / 100
+                </span>
+                {formErrors.name && (
+                  <span id="name-error" className="error">
+                    {formErrors.name}
+                  </span>
+                )}
               </label>
 
-              <label>
+              <label className={formErrors.description ? "field-invalid" : ""}>
                 Description (required)
                 <textarea
                   name="description"
                   rows={3}
                   value={formData.description}
                   onChange={handleFieldChange}
-                  required
+                  aria-invalid={!!formErrors.description}
+                  aria-describedby="description-error"
                 />
+                {formErrors.description && (
+                  <span id="description-error" className="error">
+                    {formErrors.description}
+                  </span>
+                )}
               </label>
 
-              <label>
-                Expected Duration in Minutes (required)
+              <label className={formErrors.duration ? "field-invalid" : ""}>
+                Expected Duration in Minutes (required, whole number &gt; 0)
                 <input
                   type="number"
                   min={1}
+                  step={1}
+                  inputMode="numeric"
                   name="duration"
                   value={formData.duration}
                   onChange={handleFieldChange}
-                  required
+                  aria-invalid={!!formErrors.duration}
+                  aria-describedby="duration-error"
                 />
+                {formErrors.duration && (
+                  <span id="duration-error" className="error">
+                    {formErrors.duration}
+                  </span>
+                )}
               </label>
 
-              <label>
-                Priority Level
+              <label className={formErrors.priority ? "field-invalid" : ""}>
+                Priority Level (required)
                 <select
                   name="priority"
                   value={formData.priority}
                   onChange={handleFieldChange}
+                  aria-invalid={!!formErrors.priority}
+                  aria-describedby="priority-error"
                 >
+                  <option value="">Select priority…</option>
                   <option value="low">Low</option>
                   <option value="medium">Medium</option>
                   <option value="high">High</option>
                 </select>
+                {formErrors.priority && (
+                  <span id="priority-error" className="error">
+                    {formErrors.priority}
+                  </span>
+                )}
               </label>
-
-              {formError && <p className="error">{formError}</p>}
 
               <div className="inline-actions">
                 <button className="btn btn-primary" type="submit">
