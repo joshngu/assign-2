@@ -1,12 +1,24 @@
 import { COLORS, FONT_MONO } from "./QueueSmartAuth";
 import { StatusBadge } from "./UserBadges";
-import { SERVICES, NOTIFICATIONS } from "./userData";
+import { SERVICES } from "./userData";
+import { useNotifications } from "./Notifications";
+
+function timeAgo(ts) { 
+  const diff = Math.max(0, Date.now() - ts);
+  const min = Math.floor(diff / 60000);
+  if (min < 1) return "just now";
+  if (min < 60) return `${min}m ago`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return `${hr}h ago`;
+  return `${Math.floor(hr / 24)}d ago`;
+}
 
 /* ---------------------------------------------------------
    User Dashboard — overview, active services, notifications
 --------------------------------------------------------- */
 export default function UserDashboardScreen({ user, goJoin, goStatus }) {
   const name = user?.email ? user.email.split("@")[0] : "there";
+  const { items: notifications } = useNotifications();
 
   return (
     <div className="space-y-6">
@@ -63,20 +75,25 @@ export default function UserDashboardScreen({ user, goJoin, goStatus }) {
           Notifications
         </h2>
         <ul className="space-y-3">
-          {NOTIFICATIONS.map((n) => (
+          {notifications.slice(0, 4).map((n) => (
             <li key={n.id} className="flex items-start gap-3 text-sm">
               <span
                 className="mt-1.5 h-1.5 w-1.5 rounded-full flex-shrink-0"
-                style={{ background: n.unread ? COLORS.coral : COLORS.line }}
+                style={{ background: n.read ? COLORS.line : COLORS.coral }}
               />
               <div>
-                <p style={{ color: COLORS.ink }}>{n.message}</p>
+                <p style={{ color: COLORS.ink }}>{n.title}</p>
                 <p className="text-xs mt-0.5" style={{ color: COLORS.slate }}>
-                  {n.time}
+                  {timeAgo(n.ts)} 
                 </p>
               </div>
             </li>
           ))}
+          {notifications.length === 0 && ( 
+            <p className="text-sm" style={{ color: COLORS.slate }}>
+              No notifications yet.
+            </p>
+          )} 
         </ul>
       </div>
     </div>
