@@ -1,28 +1,6 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
-const initialServices = [
-  {
-    id: 1,
-    name: "General Checkup",
-    description: "Routine physical exam and health assessment.",
-    duration: 30,
-    priority: "medium",
-  },
-  {
-    id: 2,
-    name: "Vaccination",
-    description: "Scheduled immunizations and booster shots.",
-    duration: 15,
-    priority: "high",
-  },
-  {
-    id: 3,
-    name: "Lab Work",
-    description: "Blood draw and diagnostic testing.",
-    duration: 20,
-    priority: "low",
-  },
-];
+import { fetchServices, createService, updateService } from "./api";
 
 const initialQueues = {
   1: [
@@ -49,10 +27,11 @@ const blankForm = {
   priority: "medium",
 };
 
-export default function App({ userEmail, onLogout }) {
+export default function App({ userEmail, token, onLogout }) {
   const [activeScreen, setActiveScreen] = useState("dashboard");
-  const [services, setServices] = useState(initialServices);
+  const [services, setServices] = useState([]);
   const [queues, setQueues] = useState(initialQueues);
+  const [loadError, setLoadError] = useState("");
 
   const [isQueueOpen, setIsQueueOpen] = useState(true);
   const [selectedServiceId, setSelectedServiceId] = useState(1);
@@ -60,6 +39,29 @@ export default function App({ userEmail, onLogout }) {
   const [formData, setFormData] = useState(blankForm);
   const [editingServiceId, setEditingServiceId] = useState(null);
   const [formErrors, setFormErrors] = useState({});
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchServices(token)
+      .then(({ services: fetched }) => {
+        if (cancelled) return;
+        setServices(fetched);
+        setQueues((prev) => {
+          const next = { ...prev };
+          fetched.forEach((service) => {
+            if (!next[service.id]) next[service.id] = [];
+          });
+          return next;
+        });
+      })
+      .catch((err) => {
+        if (!cancelled) setLoadError(err.message);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [token]);
 
   const totalQueuedUsers = useMemo(
     () => Object.values(queues).reduce((sum, queue) => sum + queue.length, 0),
@@ -73,64 +75,36 @@ export default function App({ userEmail, onLogout }) {
     setFormErrors((prev) => (prev[name] ? { ...prev, [name]: undefined } : prev));
   }
 
-  function validateForm() {
-    const errors = {};
-
-    const trimmedName = formData.name.trim();
-    if (!trimmedName) {
-      errors.name = "Service name is required.";
-    } else if (trimmedName.length > 100) {
-      errors.name = "Service name must not exceed 100 characters.";
-    }
-
-    if (!formData.description.trim()) {
-      errors.description = "Description is required.";
-    }
-
-    const durationValue = Number(formData.duration);
-    if (formData.duration === "" || formData.duration === null) {
-      errors.duration = "Expected duration is required.";
-    } else if (Number.isNaN(durationValue) || durationValue <= 0) {
-      errors.duration = "Enter a whole number of minutes greater than 0.";
-    }
-
-    if (!formData.priority) {
-      errors.priority = "Select a priority level.";
-    }
-
-    return errors;
-  }
-
-  function handleSaveService(event) {
+  async function handleSaveService(event) {
     event.preventDefault();
-    const errors = validateForm();
-    setFormErrors(errors);
-    if (Object.keys(errors).length > 0) return;
 
     const payload = {
       name: formData.name.trim(),
       description: formData.description.trim(),
-      duration: Number(formData.duration),
+      duration: formData.duration,
       priority: formData.priority,
     };
 
-    if (editingServiceId) {
-      setServices((prev) =>
-        prev.map((service) =>
-          service.id === editingServiceId ? { ...service, ...payload } : service
-        )
+    setSubmitting(true);
+    try {
+      if (editingServiceId) {
+        const { service } = await updateService(token, editingServiceId, payload);
+        setServices((prev) => prev.map((s) => (s.id === editingServiceId ? service : s)));
+      } else {
+        const { service } = await createService(token, payload);
+        setServices((prev) => [...prev, service]);
+        setQueues((prev) => ({ ...prev, [service.id]: [] }));
+      }
+      setEditingServiceId(null);
+      setFormData(blankForm);
+      setFormErrors({});
+    } catch (err) {
+      setFormErrors(
+        err.fieldErrors && Object.keys(err.fieldErrors).length ? err.fieldErrors : { form: err.message }
       );
-    } else {
-      const nextId = services.length
-        ? Math.max(...services.map((service) => service.id)) + 1
-        : 1;
-      setServices((prev) => [...prev, { id: nextId, ...payload }]);
-      setQueues((prev) => ({ ...prev, [nextId]: [] }));
+    } finally {
+      setSubmitting(false);
     }
-
-    setEditingServiceId(null);
-    setFormData(blankForm);
-    setFormErrors({});
   }
 
   function handleEditService(service) {
@@ -352,9 +326,15 @@ export default function App({ userEmail, onLogout }) {
                 )}
               </label>
 
+              {formErrors.form && <span className="error">{formErrors.form}</span>}
+
               <div className="inline-actions">
-                <button className="btn btn-primary" type="submit">
-                  {editingServiceId ? "Save Changes" : "Create Service"}
+                <button className="btn btn-primary" type="submit" disabled={submitting}>
+                  {submitting
+                    ? "Saving…"
+                    : editingServiceId
+                    ? "Save Changes"
+                    : "Create Service"}
                 </button>
                 {editingServiceId && (
                   <button
@@ -370,6 +350,7 @@ export default function App({ userEmail, onLogout }) {
 
             <article className="card">
               <h3>Existing Services</h3>
+              {loadError && <p className="error">{loadError}</p>}
               <ul className="service-list">
                 {services.map((service) => (
                   <li key={service.id}>

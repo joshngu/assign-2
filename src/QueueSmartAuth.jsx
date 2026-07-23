@@ -14,6 +14,7 @@ import {
 
 import App from "./App";
 import UserApp from "./UserApp";
+import { registerUser, loginUser } from "./api";
 
 /* ---------------------------------------------------------
    Design tokens
@@ -32,37 +33,8 @@ export const FONT_DISPLAY = "'IBM Plex Sans', sans-serif";
 export const FONT_MONO = "'IBM Plex Mono', monospace";
 
 /* ---------------------------------------------------------
-   Mock data / helpers (no backend — persisted to localStorage
-   so accounts created via Register survive page reloads)
+   Helpers
 --------------------------------------------------------- */
-const SEED_USERS = [
-  { email: "jane@example.com", password: "Passw0rd!", role: "user" },
-  { email: "admin@queuesmart.com", password: "Passw0rd!", role: "admin" },
-];
-const USERS_STORAGE_KEY = "queuesmart_users";
-
-function loadUsers() {
-  try {
-    const stored = JSON.parse(localStorage.getItem(USERS_STORAGE_KEY));
-    if (!Array.isArray(stored)) return SEED_USERS;
-    const seedEmails = new Set(SEED_USERS.map((u) => u.email.toLowerCase()));
-    const registered = stored.filter((u) => !seedEmails.has(u.email?.toLowerCase()));
-    return [...SEED_USERS, ...registered];
-  } catch {
-    return SEED_USERS;
-  }
-}
-
-function saveRegisteredUsers(users) {
-  try {
-    const seedEmails = new Set(SEED_USERS.map((u) => u.email.toLowerCase()));
-    const registered = users.filter((u) => !seedEmails.has(u.email.toLowerCase()));
-    localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(registered));
-  } catch {
-    // localStorage unavailable (e.g. private browsing) — accounts stay in-memory only
-  }
-}
-
 function validEmail(v) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
 }
@@ -79,8 +51,8 @@ function pwRules(pw) {
 --------------------------------------------------------- */
 export default function QueueSmartAuth() {
   const [screen, setScreen] = useState("login"); // login | register | dashboard
-  const [users, setUsers] = useState(loadUsers);
   const [currentUser, setCurrentUser] = useState(null);
+  const [token, setToken] = useState(null);
   const [ticket, setTicket] = useState(41);
 
   useEffect(() => {
@@ -88,12 +60,9 @@ export default function QueueSmartAuth() {
     return () => clearInterval(id);
   }, []);
 
-  useEffect(() => {
-    saveRegisteredUsers(users);
-  }, [users]);
-
   function handleLogout() {
     setCurrentUser(null);
+    setToken(null);
     setScreen("login");
   }
 
@@ -111,24 +80,23 @@ export default function QueueSmartAuth() {
       `}</style>
 
       {screen === "dashboard" && currentUser ? (
-        <Dashboard user={currentUser} onLogout={handleLogout} />
+        <Dashboard user={currentUser} token={token} onLogout={handleLogout} />
       ) : (
         <AuthShell ticket={ticket}>
           {screen === "login" ? (
             <LoginPanel
-              users={users}
-              onSuccess={(u) => {
-                setCurrentUser(u);
+              onSuccess={(user, tok) => {
+                setCurrentUser(user);
+                setToken(tok);
                 setScreen("dashboard");
               }}
               goRegister={() => setScreen("register")}
             />
           ) : (
             <RegisterPanel
-              users={users}
-              onRegister={(u) => {
-                setUsers((prev) => [...prev, u]);
-                setCurrentUser(u);
+              onRegister={(user, tok) => {
+                setCurrentUser(user);
+                setToken(tok);
                 setScreen("dashboard");
               }}
               goLogin={() => setScreen("login")}
@@ -272,7 +240,7 @@ function RoleButton({ active, onClick, icon: Icon, label }) {
 /* ---------------------------------------------------------
    Login
 --------------------------------------------------------- */
-function LoginPanel({ users, onSuccess, goRegister }) {
+function LoginPanel({ onSuccess, goRegister }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPw, setShowPw] = useState(false);
@@ -287,7 +255,7 @@ function LoginPanel({ users, onSuccess, goRegister }) {
     return e;
   }
 
-  function handleSubmit(ev) {
+  async function handleSubmit(ev) {
     ev.preventDefault();
     const e = validate();
     if (Object.keys(e).length) {
@@ -295,18 +263,15 @@ function LoginPanel({ users, onSuccess, goRegister }) {
       return;
     }
     setSubmitting(true);
-    setTimeout(() => {
-      const match = users.find(
-        (u) => u.email.toLowerCase() === email.trim().toLowerCase() && u.password === password
-      );
-      setSubmitting(false);
-      if (!match) {
-        setErrors({ form: "Incorrect email or password." });
-        return;
-      }
+    try {
+      const { user, token } = await loginUser({ email: email.trim(), password });
       setErrors({});
-      onSuccess(match);
-    }, 400);
+      onSuccess(user, token);
+    } catch (err) {
+      setErrors(err.fieldErrors && Object.keys(err.fieldErrors).length ? err.fieldErrors : { form: err.message });
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   return (
@@ -399,7 +364,7 @@ function LoginPanel({ users, onSuccess, goRegister }) {
 /* ---------------------------------------------------------
    Register
 --------------------------------------------------------- */
-function RegisterPanel({ users, onRegister, goLogin }) {
+function RegisterPanel({ onRegister, goLogin }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
@@ -416,8 +381,6 @@ function RegisterPanel({ users, onRegister, goLogin }) {
     const e = {};
     if (!email.trim()) e.email = "Email is required.";
     else if (!validEmail(email)) e.email = "Enter a valid email address.";
-    else if (users.some((u) => u.email.toLowerCase() === email.trim().toLowerCase()))
-      e.email = "This email is already registered. Try logging in instead.";
 
     if (!password) e.password = "Password is required.";
     else if (rules.some((r) => !r.pass)) e.password = "Password doesn't meet the requirements below.";
@@ -428,7 +391,7 @@ function RegisterPanel({ users, onRegister, goLogin }) {
     return e;
   }
 
-  function handleSubmit(ev) {
+  async function handleSubmit(ev) {
     ev.preventDefault();
     const e = validate();
     if (Object.keys(e).length) {
@@ -436,10 +399,15 @@ function RegisterPanel({ users, onRegister, goLogin }) {
       return;
     }
     setSubmitting(true);
-    setTimeout(() => {
+    try {
+      const { user, token } = await registerUser({ email: email.trim(), password, role });
+      setErrors({});
+      onRegister(user, token);
+    } catch (err) {
+      setErrors(err.fieldErrors && Object.keys(err.fieldErrors).length ? err.fieldErrors : { form: err.message });
+    } finally {
       setSubmitting(false);
-      onRegister({ email: email.trim(), password, role });
-    }, 400);
+    }
   }
 
   return (
@@ -561,6 +529,12 @@ function RegisterPanel({ users, onRegister, goLogin }) {
           />
         </Field>
 
+        {errors.form && (
+          <div className="flex items-center gap-2 text-sm" style={{ color: COLORS.coral }}>
+            <AlertCircle size={16} /> {errors.form}
+          </div>
+        )}
+
         <button
           type="submit"
           disabled={submitting}
@@ -578,11 +552,11 @@ function RegisterPanel({ users, onRegister, goLogin }) {
    Post-auth routing: admins get the admin panel, customers
    get the QueueSmart user screens
 --------------------------------------------------------- */
-function Dashboard({ user, onLogout }) {
+function Dashboard({ user, token, onLogout }) {
   const isAdmin = user.role === "admin";
 
   if (isAdmin) {
-    return <App userEmail={user.email} onLogout={onLogout} />;
+    return <App userEmail={user.email} token={token} onLogout={onLogout} />;
   }
 
   return <UserApp user={user} onLogout={onLogout} />;
