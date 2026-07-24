@@ -3,7 +3,7 @@ import { Ticket, LogOut, LayoutDashboard, ListPlus, Clock, History as HistoryIco
 
 import { COLORS } from "./QueueSmartAuth";
 import { SERVICES } from "./userData";
-import { NotificationBell} from "./Notifications";
+import { NotificationBell, NotificationProvider } from "./Notifications";
 import UserDashboardScreen from "./UserDashboardScreen";
 import JoinQueueScreen from "./JoinQueueScreen";
 import QueueStatusScreen from "./QueueStatusScreen";
@@ -21,7 +21,7 @@ const TABS = [
    The 4 screens each live in their own file and are wired
    in here.
 --------------------------------------------------------- */
-export default function UserApp({ user, onLogout }) {
+export default function UserApp({ user, token, onLogout }) {
   const [screen, setScreen] = useState("dashboard");
   const [selectedServiceId, setSelectedServiceId] = useState(SERVICES[0].id);
 
@@ -30,6 +30,7 @@ export default function UserApp({ user, onLogout }) {
   }
 
   return (
+    <NotificationProvider token={token}>
     <div className="min-h-screen" style={{ background: COLORS.paper }}>
       <header
         className="flex items-center justify-between px-6 md:px-12 py-5 border-b"
@@ -70,9 +71,10 @@ export default function UserApp({ user, onLogout }) {
           <JoinQueueScreen selectedServiceId={selectedServiceId} setSelectedServiceId={setSelectedServiceId} />
         )}
         {screen === "status" && <QueueStatusScreen />}
-        {screen === "history" && <HistoryScreen />}
+        {screen === "history" && <HistoryScreen token={token} />}
       </main>
     </div>
+    </NotificationProvider>
   );
 }
 
