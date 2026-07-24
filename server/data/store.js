@@ -51,6 +51,10 @@ export const db = {
   sessions: new Map(), // token -> { userId }
   nextUserId: 3,
   nextServiceId: 4,
+  notifications: [],        
+  nextNotificationId: 1,    
+  history: [],             
+  nextHistoryId: 1, 
 };
 
 /** Resets the in-memory store to its seeded state — used between test runs. */
@@ -60,4 +64,8 @@ export function resetStore() {
   db.sessions = new Map();
   db.nextUserId = 3;
   db.nextServiceId = 4;
+  db.notifications = [];
+  db.nextNotificationId = 1;
+  db.history = []; 
+  db.nextHistoryId = 1;     
 }
