@@ -1,30 +1,23 @@
 import { createContext, useContext, useState, useCallback, useEffect, useRef } from "react";
 
 import { COLORS } from "./QueueSmartAuth";
+import { fetchNotifications, markNotificationRead as apiMarkNotificationRead } from "./api";
 
-const SEED_NOTIFICATIONS = [
-  {
-    id: "n1",
-    title: "General Checkup appointment confirmed",
-    body: "You're booked for 10:30 AM.",
-    read: false,
-    ts: Date.now() - 1000 * 60 * 5,
-  },
-  {
-    id: "n2",
-    title: "Vaccination is open again",
-    body: "Booking has reopened for this service.",
-    read: false,
-    ts: Date.now() - 1000 * 60 * 60,
-  },
-  {
-    id: "n3",
-    title: "Lab Work — served",
-    body: "Your appointment has been completed.",
-    read: true,
-    ts: Date.now() - 1000 * 60 * 60 * 24,
-  },
-];
+// Human-readable labels for the backend's notification `type` field.
+const TYPE_LABELS = {
+  queue_joined: "Queue joined",
+  close_to_served: "Almost your turn",
+};
+
+function fromBackendNotification(n) {
+  return {
+    id: n.id,
+    title: TYPE_LABELS[n.type] || "Notification",
+    body: n.message,
+    read: n.read,
+    ts: new Date(n.createdAt).getTime(),
+  };
+}
 
 function timeAgo(ts) {
   const diff = Math.max(0, Date.now() - ts);
@@ -40,13 +33,34 @@ function timeAgo(ts) {
 
 const NotificationContext = createContext(null);
 
-export function NotificationProvider({ children, seed = SEED_NOTIFICATIONS }) {
-  const [items, setItems] = useState(seed);
-  const idRef = useRef(seed.length + 1);
+export function NotificationProvider({ children, token = null }) {
+  const [items, setItems] = useState([]);
+  // Locally-created notifications (from the still-mocked queue screens) get
+  // string ids so they never collide with numeric ids from the backend.
+  const idRef = useRef(1);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!token) {
+      setItems([]);
+      return undefined;
+    }
+    fetchNotifications(token)
+      .then(({ notifications }) => {
+        if (cancelled) return;
+        setItems(notifications.map(fromBackendNotification));
+      })
+      .catch(() => {
+        // Best-effort: leave notifications empty if the backend call fails.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [token]);
 
   const notify = useCallback(({ title, body }) => {
     const item = {
-      id: `n${idRef.current++}`,
+      id: `local-${idRef.current++}`,
       title,
       body,
       read: false,
@@ -55,13 +69,31 @@ export function NotificationProvider({ children, seed = SEED_NOTIFICATIONS }) {
     setItems((prev) => [item, ...prev]);
   }, []);
 
-  const markRead = useCallback((id) => {
-    setItems((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)));
-  }, []);
+  const markRead = useCallback(
+    (id) => {
+      setItems((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)));
+      // Only sync to the backend for real, numeric backend-sourced ids.
+      if (token && typeof id === "number") {
+        apiMarkNotificationRead(token, id).catch(() => {
+          // Best-effort sync; the optimistic local update already applied.
+        });
+      }
+    },
+    [token]
+  );
 
   const markAllRead = useCallback(() => {
-    setItems((prev) => prev.map((n) => ({ ...n, read: true })));
-  }, []);
+    setItems((prev) => {
+      if (token) {
+        prev
+          .filter((n) => !n.read && typeof n.id === "number")
+          .forEach((n) => {
+            apiMarkNotificationRead(token, n.id).catch(() => {});
+          });
+      }
+      return prev.map((n) => ({ ...n, read: true }));
+    });
+  }, [token]);
 
   const remove = useCallback((id) => {
     setItems((prev) => prev.filter((n) => n.id !== id));
