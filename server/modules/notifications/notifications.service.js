@@ -1,5 +1,6 @@
 import { db } from "../../data/store.js";
 import { ApiError } from "../../utils/ApiError.js";
+import { validateNotification, validateNotificationId } from "./notifications.validation.js";
 
 /*
  * Notification Module.
@@ -7,8 +8,6 @@ import { ApiError } from "../../utils/ApiError.js";
  * close to being served. Per assignment scope, notifications are logged
  * in-memory and returned to the front end (no real email/SMS).
  */
-
-const VALID_TYPES = ["queue_joined", "close_to_served"];
 
 function toPublicNotification(notification) {
   return {
@@ -22,11 +21,9 @@ function toPublicNotification(notification) {
 }
 
 export function notify(userId, type, message) {
-  if (!VALID_TYPES.includes(type)) {
-    throw new ApiError(400, `Unknown notification type: ${type}`);
-  }
-  if (!message || typeof message !== "string") {
-    throw new ApiError(400, "Notification message is required.");
+  const errors = validateNotification({ userId, type, message });
+  if (Object.keys(errors).length > 0) {
+    throw new ApiError(400, "Validation failed", errors);
   }
 
   const notification = {
@@ -63,6 +60,11 @@ export function listNotificationsForUser(userId) {
 }
 
 export function markNotificationRead(notificationId, userId) {
+  const errors = validateNotificationId(notificationId);
+  if (Object.keys(errors).length > 0) {
+    throw new ApiError(400, "Validation failed", errors);
+  }
+
   const notification = db.notifications.find((n) => n.id === Number(notificationId));
   if (!notification || notification.userId !== userId) {
     return null;
