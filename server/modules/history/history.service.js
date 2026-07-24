@@ -1,13 +1,12 @@
 import { db } from "../../data/store.js";
 import { ApiError } from "../../utils/ApiError.js";
+import { validateHistoryEntry } from "./history.validation.js";
 
 /*
  * History Module.
  * Tracks queue participation history for users. Stored in-memory per
  * assignment scope (no real database yet).
  */
-
-const VALID_OUTCOMES = ["served", "left_queue", "no_show"];
 
 function toPublicHistoryEntry(entry) {
   return {
@@ -21,11 +20,9 @@ function toPublicHistoryEntry(entry) {
 }
 
 export function recordHistory({ userId, serviceId, joinedAt, servedAt = null, outcome }) {
-  if (!userId || !serviceId || !joinedAt) {
-    throw new ApiError(400, "userId, serviceId, and joinedAt are required.");
-  }
-  if (!VALID_OUTCOMES.includes(outcome)) {
-    throw new ApiError(400, `Unknown outcome: ${outcome}`);
+  const errors = validateHistoryEntry({ userId, serviceId, joinedAt, servedAt, outcome });
+  if (Object.keys(errors).length > 0) {
+    throw new ApiError(400, "Validation failed", errors);
   }
 
   const entry = {
