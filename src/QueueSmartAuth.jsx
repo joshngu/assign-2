@@ -559,5 +559,5 @@ function Dashboard({ user, token, onLogout }) {
     return <App userEmail={user.email} token={token} onLogout={onLogout} />;
   }
 
-  return <UserApp user={user} onLogout={onLogout} />;
+  return <UserApp user={user} token={token} onLogout={onLogout} />;
 }
