@@ -46,4 +46,16 @@ export function updateService(token, id, payload) {
   return request(`/services/${id}`, { method: "PUT", body: payload, token });
 }
 
+export function fetchNotifications(token) {
+  return request("/notifications", { token });
+}
+
+export function markNotificationRead(token, id) {
+  return request(`/notifications/${id}/read`, { method: "POST", token });
+}
+
+export function fetchHistory(token) {
+  return request("/history", { token });
+}
+
 export { ApiRequestError };
