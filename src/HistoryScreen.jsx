@@ -1,11 +1,57 @@
+import { useEffect, useState } from "react";
+
 import { COLORS, FONT_MONO } from "./QueueSmartAuth";
 import { OutcomeBadge } from "./UserBadges";
-import { HISTORY } from "./userData";
+import { fetchHistory } from "./api";
+
+// Service names aren't included on history entries (the backend only stores
+// serviceId), so we look them up here for display purposes.
+const SERVICE_NAMES = {
+  1: "General Checkup",
+  2: "Vaccination",
+  3: "Lab Work",
+};
+
+const OUTCOME_LABELS = {
+  served: "Served",
+  left_queue: "Left queue",
+  no_show: "No-show",
+};
+
+function formatDate(iso) {
+  return new Date(iso).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+}
+
+function formatTime(iso) {
+  return new Date(iso).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+}
 
 /* ---------------------------------------------------------
-   History — past queues joined
+   History — past queues joined, loaded from the backend
 --------------------------------------------------------- */
-export default function HistoryScreen() {
+export default function HistoryScreen({ token }) {
+  const [history, setHistory] = useState([]);
+  const [loadError, setLoadError] = useState("");
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    fetchHistory(token)
+      .then(({ history: fetched }) => {
+        if (!cancelled) setHistory(fetched);
+      })
+      .catch((err) => {
+        if (!cancelled) setLoadError(err.message);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [token]);
+
   return (
     <div className="space-y-6">
       <div>
@@ -17,44 +63,60 @@ export default function HistoryScreen() {
         </h1>
       </div>
 
-      <div className="rounded-2xl overflow-hidden" style={{ background: "#fff", border: `1px solid ${COLORS.line}` }}>
-        <table className="w-full text-sm">
-          <thead>
-            <tr style={{ borderBottom: `1px solid ${COLORS.line}` }}>
-              <th className="text-left font-medium px-5 py-3" style={{ color: COLORS.slate }}>
-                Date
-              </th>
-              <th className="text-left font-medium px-5 py-3" style={{ color: COLORS.slate }}>
-                Time
-              </th>
-              <th className="text-left font-medium px-5 py-3" style={{ color: COLORS.slate }}>
-                Service
-              </th>
-              <th className="text-left font-medium px-5 py-3" style={{ color: COLORS.slate }}>
-                Outcome
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {HISTORY.map((h) => (
-              <tr key={h.id} style={{ borderBottom: `1px solid ${COLORS.line}` }}>
-                <td className="px-5 py-3" style={{ color: COLORS.ink }}>
-                  {h.date}
-                </td>
-                <td className="px-5 py-3" style={{ color: COLORS.ink }}>
-                  {h.time}
-                </td>
-                <td className="px-5 py-3" style={{ color: COLORS.ink }}>
-                  {h.service}
-                </td>
-                <td className="px-5 py-3">
-                  <OutcomeBadge outcome={h.outcome} />
-                </td>
+      {loadError && <p style={{ color: COLORS.coral }}>{loadError}</p>}
+
+      {!loadError && loading && (
+        <p className="text-sm" style={{ color: COLORS.slate }}>
+          Loading history…
+        </p>
+      )}
+
+      {!loadError && !loading && history.length === 0 && (
+        <p className="text-sm" style={{ color: COLORS.slate }}>
+          You haven't joined any queues yet.
+        </p>
+      )}
+
+      {!loadError && !loading && history.length > 0 && (
+        <div className="rounded-2xl overflow-hidden" style={{ background: "#fff", border: `1px solid ${COLORS.line}` }}>
+          <table className="w-full text-sm">
+            <thead>
+              <tr style={{ borderBottom: `1px solid ${COLORS.line}` }}>
+                <th className="text-left font-medium px-5 py-3" style={{ color: COLORS.slate }}>
+                  Date
+                </th>
+                <th className="text-left font-medium px-5 py-3" style={{ color: COLORS.slate }}>
+                  Time
+                </th>
+                <th className="text-left font-medium px-5 py-3" style={{ color: COLORS.slate }}>
+                  Service
+                </th>
+                <th className="text-left font-medium px-5 py-3" style={{ color: COLORS.slate }}>
+                  Outcome
+                </th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody>
+              {history.map((h) => (
+                <tr key={h.id} style={{ borderBottom: `1px solid ${COLORS.line}` }}>
+                  <td className="px-5 py-3" style={{ color: COLORS.ink }}>
+                    {formatDate(h.joinedAt)}
+                  </td>
+                  <td className="px-5 py-3" style={{ color: COLORS.ink }}>
+                    {formatTime(h.joinedAt)}
+                  </td>
+                  <td className="px-5 py-3" style={{ color: COLORS.ink }}>
+                    {SERVICE_NAMES[h.serviceId] || `Service #${h.serviceId}`}
+                  </td>
+                  <td className="px-5 py-3">
+                    <OutcomeBadge outcome={OUTCOME_LABELS[h.outcome] || h.outcome} />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }
