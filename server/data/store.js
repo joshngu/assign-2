@@ -45,16 +45,66 @@ function seedServices() {
   ];
 }
 
+function seedNotifications() {
+  return [
+    {
+      id: 1,
+      userId: 1,
+      type: "queue_joined",
+      message: "You joined the queue for General Checkup.",
+      createdAt: new Date(Date.now() - 1000 * 60 * 60).toISOString(),
+      read: true,
+    },
+    {
+      id: 2,
+      userId: 1,
+      type: "close_to_served",
+      message: "You are almost up for General Checkup. Estimated wait: 10 minutes.",
+      createdAt: new Date(Date.now() - 1000 * 60 * 5).toISOString(),
+      read: false,
+    },
+  ];
+}
+
+function seedHistory() {
+  return [
+    {
+      id: 1,
+      userId: 1,
+      serviceId: 3,
+      joinedAt: "2026-07-08T10:00:00.000Z",
+      servedAt: "2026-07-08T10:15:00.000Z",
+      outcome: "served",
+    },
+    {
+      id: 2,
+      userId: 1,
+      serviceId: 2,
+      joinedAt: "2026-07-03T09:30:00.000Z",
+      servedAt: "2026-07-03T09:45:00.000Z",
+      outcome: "served",
+    },
+    {
+      id: 3,
+      userId: 1,
+      serviceId: 1,
+      joinedAt: "2026-06-27T10:45:00.000Z",
+      servedAt: null,
+      outcome: "left_queue",
+    },
+  ];
+}
+
 export const db = {
   users: seedUsers(),
   services: seedServices(),
   sessions: new Map(), // token -> { userId }
   nextUserId: 3,
   nextServiceId: 4,
-  notifications: [],        
-  nextNotificationId: 1,    
-  history: [],             
-  nextHistoryId: 1, 
+  notifications: seedNotifications(),        
+  nextNotificationId: 3,    
+  history: seedHistory(),             
+  nextHistoryId: 4, 
 };
 
 /** Resets the in-memory store to its seeded state — used between test runs. */
@@ -64,8 +114,8 @@ export function resetStore() {
   db.sessions = new Map();
   db.nextUserId = 3;
   db.nextServiceId = 4;
-  db.notifications = [];
-  db.nextNotificationId = 1;
-  db.history = []; 
-  db.nextHistoryId = 1;     
+  db.notifications = seedNotifications();
+  db.nextNotificationId = 3;
+  db.history = seedNotifications(); 
+  db.nextHistoryId = 4;     
 }
